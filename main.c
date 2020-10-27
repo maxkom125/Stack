@@ -9,12 +9,22 @@
                             if ((compared1) != (compared2)) \
                                 fprintf(stk->logFile, " %s \n", (whatToPrint));
 
-typedef int Elem_t;
-//typedef int bool;
-typedef unsigned long long StackCanary;
 #ifndef Size_t
 #define Size_t int
 #endif
+
+#ifndef Elem_t
+#define Elem_t int
+#endif
+
+#ifdef STACK_PROTECT
+#define ON_STACK_PROTECT(code) code
+#else
+#define ON_STACK_PROTECT(code)
+#endif
+
+//typedef int bool;
+typedef unsigned long long StackCanary;
 typedef unsigned long long StackHash_t;
 
 #define MAX_STACK_FILE_NAME 50
@@ -36,13 +46,13 @@ enum stackDefenders
 
 typedef struct Stack
 {
-    StackCanary canary1;
-    StackHash_t hash;
+    ON_STACK_PROTECT(StackCanary canary1);
+    ON_STACK_PROTECT(StackHash_t hash);
     Elem_t* boof;
     Size_t currElem;
     Size_t size;
     FILE* logFile;
-    StackCanary canary2;
+    ON_STACK_PROTECT(StackCanary canary2);
 } Stack;
 
 int AssertStackConstruct(Stack* stk, FILE* logFile)
@@ -84,13 +94,13 @@ int StackConstructFull(Stack* stk, size_t capacity, char* stkLogFileName)
     if (!AssertStackConstruct(stk, logFile) /*!= 1*/)
         return 0;
 
-    stk->canary1 = CANARY1;
-    stk->canary2 = CANARY2;
+    ON_STACK_PROTECT(stk->canary1 = CANARY1;
+                     stk->canary2 = CANARY2);
     stk->size = capacity;
     stk->currElem = -1;
     stk->boof = (Elem_t*)calloc(capacity, sizeof(Elem_t));
     stk->logFile = logFile;
-    stk->hash = _HashFuncOfStack(stk);
+    ON_STACK_PROTECT(stk->hash = _HashFuncOfStack(stk));
 
     if (!AssertStackConstruct(stk, logFile) /*!= 1*/)
         return 0;
@@ -115,13 +125,13 @@ int StackErrors(Stack* stk)
         stk->logFile = fopen("StackLog.txt", "w");
         fprintf(stk->logFile, "\n \n BEGIN OF STK ERRORS  \n (No logFile, New Created in %s) \n ", __PRETTY_FUNCTION__ );
     }
-
+    ON_STACK_PROTECT(
     PRINT_TO_LOG_FILE_IF_NOT_EQUAL(stk->canary1, CANARY1, \
                         "Canary1 has been changed. Stack can be broken");
     PRINT_TO_LOG_FILE_IF_NOT_EQUAL(stk->canary2, CANARY2, \
                         "Canary2 has been changed. Stack can be broken");
     PRINT_TO_LOG_FILE_IF_NOT_EQUAL(stk->hash, _HashFuncOfStack(stk), "HASH has been changed. Stack can be broken");
-
+    )
     return 0;
 }
 
@@ -154,8 +164,10 @@ int main()
 {
     Stack MyStack;
     int i = StackConstructFull(&MyStack, 3, "stklog.txt");
+    ON_STACK_PROTECT(
     if (_HashFuncOfStack(&MyStack) != MyStack.hash)
         printf("Bad Stack %llu, %llu", _HashFuncOfStack(&MyStack), MyStack.hash);
+    )
     StackDelete(&MyStack);
     return 0;
 }
